@@ -7,4 +7,32 @@ output: github_document
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(knitr)
+library(readxl)
+library(haven)
+library(plotly)
+library(viridis)
 ```
+
+## Problem 1
+
+Read in and clean birthweight data for regression.
+
+```{r}
+birthweight_data = read_csv(file = "./data/birthweight.csv") %>% 
+  janitor::clean_names() %>%
+  mutate(
+    babysex = factor(babysex, levels =  c("1", "2"), labels = c("male", "female")),
+    frace = factor(frace, levels =  c("1", "2", "3", "4", "8", "9"), labels = c("white", "black", "asian", "puerto rican", "other", "unknown")),
+    malform = factor(malform, levels =  c("0", "1"), labels = c("absent", "present")),
+    mrace = factor(mrace, levels =  c("1", "2", "3", "4", "8"), labels = c("white", "black", "asian", "puerto rican", "other"))     
+      )
+birthweight_data
+```
+
+```{r}
+sum(!complete.cases(birthweight_data))
+```
+
+*There are no missing data*
