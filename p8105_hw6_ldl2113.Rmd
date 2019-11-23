@@ -13,21 +13,24 @@ library(readxl)
 library(haven)
 library(plotly)
 library(viridis)
+library(broom)
+library(purrr)
 ```
 
 ## Problem 1
 
-Read in and clean birthweight data for regression.
+Read in and clean birthweight data for regression. Create dichotomous maternal race variable for regression (black vs. non-black/unknown).
 
-```{r}
+```{r, message=FALSE}
 birthweight_data = read_csv(file = "./data/birthweight.csv") %>% 
   janitor::clean_names() %>%
   mutate(
     babysex = factor(babysex, levels =  c("1", "2"), labels = c("male", "female")),
     frace = factor(frace, levels =  c("1", "2", "3", "4", "8", "9"), labels = c("white", "black", "asian", "puerto rican", "other", "unknown")),
     malform = factor(malform, levels =  c("0", "1"), labels = c("absent", "present")),
-    mrace = factor(mrace, levels =  c("1", "2", "3", "4", "8"), labels = c("white", "black", "asian", "puerto rican", "other"))     
-      )
+    mrace = factor(mrace, levels =  c("1", "2", "3", "4", "8"), labels = c("white", "black", "asian", "puerto rican", "other"))
+  ) %>%
+  mutate(mblack = ifelse(mrace == "black", "true", "false"))
 birthweight_data
 ```
 
@@ -36,3 +39,27 @@ sum(!complete.cases(birthweight_data))
 ```
 
 *There are no missing data*
+
+Propose a regression model for birthweight. This model may be based on a hypothesized structure for the factors that underly birthweight, on a data-driven model-building process, or a combination of the two. Describe your modeling process and show a plot of model residuals against fitted values – use add_predictions and add_residuals in making this plot.
+
+*Based on my clinical in the delivery room and NICU, I propose that birthweight is modeled by the following factors: gestationl age, length, head circumference, smoking status, income, and the number of prior low birthweight babies born to the mother. I will also include maternal race (black/non-black) given recent NYtimes coverage of the healthcare disparities impacting black mothers and their babies even after other factors such as SES are accounted for*
+
+```{r, message=FALSE} 
+linearmodel_1 = lm(bwt ~ gaweeks + bhead + blength + smoken + fincome + pnumlbw, data = birthweight_data) 
+linearmodel_1 %>% 
+broom::tidy() %>% 
+  select(term, estimate, p.value) 
+```
+
+```{r, message=FALSE} 
+birthweight_data %>%
+modelr::add_residuals(linearmodel_1) %>%
+modelr::add_predictions(linearmodel_1) %>% 
+ggplot(aes(x = pred, y = resid)) + geom_point(alpha = 0.5) + 
+           geom_hline(yintercept = 0, color = "green") + 
+  labs(
+    title = "Plot of model residuals against fitted values",
+    x = "Predicted Birtweight (grams)",
+    y = "Residuals"
+   )
+```
