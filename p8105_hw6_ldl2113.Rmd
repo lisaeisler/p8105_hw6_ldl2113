@@ -1,0 +1,10 @@
+---
+title: "Homework 6"
+author: "Lisa Eisler"
+date: "11/22/2019"
+output: github_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
