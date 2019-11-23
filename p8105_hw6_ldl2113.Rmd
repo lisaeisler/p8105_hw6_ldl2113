@@ -6,7 +6,14 @@ output: github_document
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(
+  echo = TRUE,
+  warning = FALSE,
+  fig.width = 8,
+  fig.height = 6,
+  out.width = "90%"
+)
+
 library(tidyverse)
 library(knitr)
 library(readxl)
@@ -39,16 +46,15 @@ birthweight_data
 ```
 
 ```{r}
-sum(!complete.cases(birthweight_data))
+skimr::skim(birthweight_data)
 ```
-
 *There are no missing data*
 
 Propose a regression model for birthweight. This model may be based on a hypothesized structure for the factors that underly birthweight, on a data-driven model-building process, or a combination of the two. Describe your modeling process. 
 
-*Based on my clinical in the delivery room and NICU, I propose that birthweight is predicted by: gestationl age, length, head circumference, smoking status, income, and the number of prior low birthweight babies born to the mother.*
+*Based on my clinical work in the delivery room and NICU, I propose that birthweight is predicted by: gestationl age, length, head circumference, smoking status, income, and the number of prior low birthweight babies born to the mother.*
 
-```{r, message=FALSE} 
+```{r} 
 bwtmodel_1 = lm(bwt ~ gaweeks + bhead + blength + smoken + fincome + pnumlbw, data = birthweight_data)
 bwtmodel_1 %>%
   summary()
@@ -65,7 +71,7 @@ bwtmodel_1 %>%
 
 Show a plot of model residuals against fitted values.
 
-```{r, message=FALSE, echo=FALSE} 
+```{r} 
 birthweight_data %>%
 modelr::add_residuals(bwtmodel_1) %>%
 modelr::add_predictions(bwtmodel_1) %>% 
@@ -87,7 +93,7 @@ bwtmodel_3 = lm(bwt ~ bhead + blength + babysex + bhead * blength + bhead * baby
 
 Make a comparison of these two models with your model in terms of the cross-validated prediction error.
 
-```{r, echo=FALSE, warning=FALSE} 
+```{r} 
 cv_bwtmodels =
   crossv_mc(birthweight_data, 100) %>%
     mutate( 
@@ -164,7 +170,9 @@ weather_df %>%
     names_from = term, 
     values_from = estimate)  %>% 
   janitor::clean_names() %>% 
-  mutate(log_est = log(intercept * tmin)) 
+  mutate(
+    log_betas = log(intercept * tmin)
+    ) 
 ```
 
 Plot the distribution of your estimates.
@@ -173,15 +181,34 @@ Plot the distribution of your estimates.
 rsquared_plot = 
   weather_estimates %>% 
   ggplot(aes(x = r_squared)) +
-  geom_density()
+  geom_density() +
+  labs(
+    title = "Estimation Distributions",
+    x = "r-squared",
+    y = "Density"
+  )
 
-logbetas_plot = 
+log_betas_plot = 
   weather_estimates %>% 
-  ggplot(aes(x = log_est)) +
-  geom_density()
+  ggplot(aes(x = log_betas)) +
+  geom_density() +
+   labs(
+    x = "log(β0*β1)",
+    y = "Density"
+  )
 
-(rsquared_plot + logbetas_plot)
+(rsquared_plot + log_betas_plot)
 ```
-
+*These plots demonstrate that the estimates are approximately normally distributed.*
 
 Using the 5000 bootstrap estimates, identify the 2.5% and 97.5% quantiles to provide a 95% confidence interval for r^2 and log(β^0∗β^1).
+
+```{r}
+pull(weather_estimates, r_squared) %>% 
+  quantile(c(0.025, 0.975))
+
+pull(weather_estimates, log_betas) %>%
+  quantile(c(0.025, 0.975))
+```
+
+*The 95% CI for r-squared is (0.89, 0.93). The 95% CI for log(β^0∗β^1) is (1.97, 2.06).* 
