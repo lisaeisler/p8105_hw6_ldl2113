@@ -17,13 +17,14 @@ library(broom)
 library(purrr)
 library(modelr)
 library(mgcv)
+library(patchwork)
 
 set.seed(1)
 ```
 
 ## Problem 1
 
-Read in and clean birthweight data for regression. Create dichotomous maternal race variable for regression (black vs. non-black/unknown).
+Read in and clean birthweight data for regression.
 
 ```{r, message=FALSE}
 birthweight_data = read_csv(file = "./data/birthweight.csv") %>% 
@@ -33,8 +34,7 @@ birthweight_data = read_csv(file = "./data/birthweight.csv") %>%
     frace = factor(frace, levels =  c("1", "2", "3", "4", "8", "9"), labels = c("white", "black", "asian", "puerto rican", "other", "unknown")),
     malform = factor(malform, levels =  c("0", "1"), labels = c("absent", "present")),
     mrace = factor(mrace, levels =  c("1", "2", "3", "4", "8"), labels = c("white", "black", "asian", "puerto rican", "other"))
-  ) %>%
-  mutate(mblack = ifelse(mrace == "black", "true", "false"))
+  )
 birthweight_data
 ```
 
@@ -46,12 +46,12 @@ sum(!complete.cases(birthweight_data))
 
 Propose a regression model for birthweight. This model may be based on a hypothesized structure for the factors that underly birthweight, on a data-driven model-building process, or a combination of the two. Describe your modeling process. 
 
-*Based on my clinical in the delivery room and NICU, I propose that birthweight is modeled by the following factors: gestationl age, length, head circumference, smoking status, income, and the number of prior low birthweight babies born to the mother. I will also include maternal race (black/non-black) given recent NYtimes coverage of the healthcare disparities impacting black mothers and their babies even after other factors such as SES are accounted for*
+*Based on my clinical in the delivery room and NICU, I propose that birthweight is predicted by: gestationl age, length, head circumference, smoking status, income, and the number of prior low birthweight babies born to the mother.*
 
 ```{r, message=FALSE} 
-bwtmodel_1 = lm(bwt ~ gaweeks + bhead + blength + smoken + fincome + pnumlbw, data = birthweight_data) 
-bwtmodel_1 %>% 
-summary()
+bwtmodel_1 = lm(bwt ~ gaweeks + bhead + blength + smoken + fincome + pnumlbw, data = birthweight_data)
+bwtmodel_1 %>%
+  summary()
 ```
 
 *show table with parameters and p-value*
@@ -117,4 +117,71 @@ pivot_longer(
   ggplot(aes(x = model, y = rmse,  fill = model)) + geom_violin(alpha = 0.5) 
 ```
 
-* Based on RMSE, the model I developed (bwtmodel_1) appears to be the best fit for the data, and in addition contains a moderate amount of complexity compared with models 2 (too simple) and 3 (too complex with interaction terms).*
+*Based on RMSE, the model I developed (bwtmodel_1) appears to be the best fit for the data, and in addition contains a moderate amount of complexity compared with models 2 (too simple) and 3 (too complex with interaction terms).*
+
+## Problem 2 
+
+Download Central Park Weather Data
+
+```{r}
+weather_df = 
+  rnoaa::meteo_pull_monitors(
+    c("USW00094728"),
+    var = c("PRCP", "TMIN", "TMAX"), 
+    date_min = "2017-01-01",
+    date_max = "2017-12-31") %>%
+  mutate(
+    name = recode(id, USW00094728 = "CentralPark_NY"),
+    tmin = tmin / 10,
+    tmax = tmax / 10) %>%
+  select(name, id, everything())
+weather_df
+```
+
+Focus on a simple linear regression with tmax as the response and tmin as the predictor:
+
+```{r}
+lm(tmax ~ tmin, data = weather_df) %>% 
+  broom::tidy() %>% 
+  knitr::kable(digits = 3)
+```
+
+We are interested in the distribution of two quantities estimated from these data: r^2 and log(β^0∗β^1). Use 5000 bootstrap samples and, for each bootstrap sample, produce estimates of these two quantities.
+
+```{r}
+weather_estimates =
+weather_df %>% 
+  modelr::bootstrap(n = 5000) %>% 
+  mutate(
+    models = map(strap, ~lm(tmax ~ tmin, data = .x)),
+    results = map(models, broom::tidy), 
+    glance = map(models, broom::glance)) %>% 
+  select(results, glance) %>% 
+  unnest(results, glance) %>% 
+  janitor::clean_names() %>% 
+  select(term, estimate, r_squared) %>% 
+  pivot_wider(
+    names_from = term, 
+    values_from = estimate)  %>% 
+  janitor::clean_names() %>% 
+  mutate(log_est = log(intercept * tmin)) 
+```
+
+Plot the distribution of your estimates.
+
+```{r}
+rsquared_plot = 
+  weather_estimates %>% 
+  ggplot(aes(x = r_squared)) +
+  geom_density()
+
+logbetas_plot = 
+  weather_estimates %>% 
+  ggplot(aes(x = log_est)) +
+  geom_density()
+
+(rsquared_plot + logbetas_plot)
+```
+
+
+Using the 5000 bootstrap estimates, identify the 2.5% and 97.5% quantiles to provide a 95% confidence interval for r^2 and log(β^0∗β^1).
